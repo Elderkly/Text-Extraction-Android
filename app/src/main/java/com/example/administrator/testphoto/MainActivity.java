@@ -46,6 +46,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        setTitle("首页");
         //申请写入权限
         if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.WRITE_EXTERNAL_STORAGE)!= PackageManager.PERMISSION_GRANTED){
             ActivityCompat.requestPermissions(MainActivity.this,new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},1);
@@ -206,8 +207,6 @@ public class MainActivity extends AppCompatActivity {
     //  页面跳转
     public void Jump(){
         System.out.println("123123");
-//        Intent intent = new Intent();
-//        intent.setClass(MainActivity.this, com.example.administrator.testphoto.MainActivity2.class);
         startActivity(new Intent(MainActivity.this, com.example.administrator.testphoto.MainActivity2.class));
     }/*按钮函数响应*/
 }

@@ -1,5 +1,6 @@
 package com.example.administrator.testphoto;
 
+import android.content.Intent;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.View;
@@ -15,6 +16,7 @@ public class MainActivity2 extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main2);
         this.initListView();
+        setTitle("企业信息");
 
     }
 
@@ -29,6 +31,10 @@ public class MainActivity2 extends AppCompatActivity {
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
                 String result = parent.getItemAtPosition(position).toString();//获取选择项的值
                 Toast.makeText(MainActivity2.this,"您点击了"+result, Toast.LENGTH_SHORT).show();
+                Intent intent = new Intent(MainActivity2.this, com.example.administrator.testphoto.MainActivity3.class);
+                String[] data = {result,"数据数据"};
+                intent.putExtra("data", data);
+                startActivity(intent);
             }
         });
     }
