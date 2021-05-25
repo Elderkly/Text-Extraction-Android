@@ -1,4 +1,4 @@
-package com.example.text_extraction;
+package com.example.administrator.testphoto;
 
 import org.junit.Test;
 
