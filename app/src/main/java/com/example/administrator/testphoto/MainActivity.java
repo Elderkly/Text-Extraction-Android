@@ -20,6 +20,7 @@ import android.support.v4.content.ContextCompat;
 import android.support.v4.content.FileProvider;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -29,9 +30,12 @@ import android.widget.Toast;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.Objects;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import de.hdodenhof.circleimageview.CircleImageView;
-
+import com.googlecode.tesseract.android.TessBaseAPI;
 import static android.os.Environment.getExternalStorageDirectory;
 
 public class MainActivity extends AppCompatActivity {
@@ -41,6 +45,14 @@ public class MainActivity extends AppCompatActivity {
     private Uri imageUri;
     private ImageView imageView;
     private CircleImageView circleImageView;
+
+    private String FILE_NAME = "tessdata";
+    private String LANGUAGE_NAME = "chi_sim.traineddata";
+    private String LANGUAGE_FILE_NAME = "chi_sim";
+
+    private static String trainedDataPath;
+
+    private static String tesseractFolder;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -186,7 +198,7 @@ public class MainActivity extends AppCompatActivity {
             Bitmap bitmap=BitmapFactory.decodeFile(imagePath);
             imageView.setImageBitmap(bitmap);
             circleImageView.setImageBitmap(bitmap);
-            this.Jump();
+            this.detectText(bitmap);
         }else {
             Log.i(TAG, "图片路径存在问题");
         }
@@ -198,10 +210,79 @@ public class MainActivity extends AppCompatActivity {
             Bitmap bitmap=BitmapFactory.decodeStream(getContentResolver().openInputStream(galleryUri));
             imageView.setImageBitmap(bitmap);
             circleImageView.setImageBitmap(bitmap);
-            this.Jump();
+            this.detectText(bitmap);
         } catch (FileNotFoundException e) {
             e.printStackTrace();
         }
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.KITKAT)
+    public String detectText(Bitmap bitmap) {
+
+        TessBaseAPI tessBaseAPI = new TessBaseAPI();
+//
+//
+//        File outFile = new File(getExternalFilesDir(FILE_NAME), LANGUAGE_NAME);
+//
+//
+//        if(!outFile.exists()){
+//            outFile.mkdir();
+//        }
+//
+//
+//        System.out.println("****"+outFile);
+//        String path = ""; //训练数据路径
+//
+        File outFile = new File(getExternalFilesDir(FILE_NAME), LANGUAGE_NAME);
+        System.out.println("outFile"+outFile);
+        if (!outFile.exists()) {
+            Toast.makeText(this,"找不到tessdata",Toast.LENGTH_LONG).show();
+            return "0";
+        }
+        String path = Objects.requireNonNull(getExternalFilesDir("")).getAbsolutePath();
+        if (TextUtils.isEmpty(path)) {
+            Toast.makeText(this,"tessdata路径出现错误",Toast.LENGTH_LONG).show();
+            return "0";
+        }
+
+        tessBaseAPI.setDebug(true);
+        System.out.println("****"+path);
+        tessBaseAPI.init(path, "chi"); //eng为识别语言
+////        tessBaseAPI.setVariable(TessBaseAPI.VAR_CHAR_WHITELIST, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"); // 识别白名单
+////        tessBaseAPI.setVariable(TessBaseAPI.VAR_CHAR_BLACKLIST, "!@#$%^&*()_+=-[]}{;:'\"\\|~`,./<>?"); // 识别黑名单
+        tessBaseAPI.setPageSegMode(TessBaseAPI.PageSegMode.PSM_AUTO_OSD);//设置识别模式
+        Log.d(TAG, "Ended initialization of TessEngine");
+        Log.d(TAG, "Running inspection on bitmap");
+        tessBaseAPI.setImage(bitmap);
+        String inspection = tessBaseAPI.getHOCRText(0);
+
+        Log.d(TAG, "Confidence values: " + tessBaseAPI.meanConfidence());
+        tessBaseAPI.end();
+        System.gc();
+        String out = getTelNum(inspection);
+        System.out.println("****SUCCESS"+out);
+        return out;
+    }
+
+    private static Pattern pattern = Pattern.compile("(1|861)\\d{10}$*");
+
+    private static StringBuilder bf = new StringBuilder();
+    public static String getTelNum(String sParam){
+        if(TextUtils.isEmpty(sParam)){
+            return "";
+        }
+
+        Matcher matcher = pattern.matcher(sParam.trim());
+        bf.delete(0, bf.length());
+
+        while (matcher.find()) {
+            bf.append(matcher.group()).append("\n");
+        }
+        int len = bf.length();
+        if (len > 0) {
+            bf.deleteCharAt(len - 1);
+        }
+        return bf.toString();
     }
 
     //  页面跳转
