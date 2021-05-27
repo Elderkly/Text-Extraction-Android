@@ -16,6 +16,7 @@ import org.json.JSONObject;
 
 public class MainActivity2 extends AppCompatActivity {
     private final JSONObject data = new JSONObject();
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -24,19 +25,17 @@ public class MainActivity2 extends AppCompatActivity {
         setTitle("企业信息");
         try{
             Intent intent = getIntent();
-            String stringData = intent.getStringExtra("data");
-            System.out.println("详情页面收到的数据");
+            JSONObject baseData = new JSONObject(intent.getStringExtra("data"));
             try {
-                JSONObject result = new JSONObject(stringData);
-                //取数据
+                JSONObject result = new JSONObject(baseData.getString("jsonRes"));
                 JSONArray words_array = result.getJSONArray("words_result");
-                System.out.println(result);
-                System.out.println(words_array);
+                JSONObject allData = new JSONObject();
+                allData.put("strRes",baseData.getString("strRes"));
+                allData.put("bitMap",baseData.getString("bitMap"));
+                this.data.put("所有数据",allData);
                 String FM = null;
                 for (int i = 0; i < words_array.length(); i++) {
-                    //通过角标获取"数组"的对象
                     JSONObject jsonObject = words_array.getJSONObject(i);
-                    //通过调用getString("划红线部分的键名")方法获取想要的数据
                     String str_addr = jsonObject.getString("words");
                     if (FM != null){
                         if (str_addr.contains("登记") || str_addr.contains("核准")) {
@@ -58,22 +57,20 @@ public class MainActivity2 extends AppCompatActivity {
                             this.data.put("经营期限",str_addr);
                         }
                     }
-                    //打开Logcat,查看是是否得到想要获取的数据
-                Log.d("logcity", str_addr);
                 }
                 System.out.println("分组数据");
                 System.out.println(this.data);
             } catch (JSONException e) {
                 e.printStackTrace();
             }
-        } catch (Error e) {
+        } catch (Error | JSONException e) {
             e.printStackTrace();
         }
     }
 
     public void initListView() {
         ListView list = (ListView)findViewById(R.id.list_view);
-        String data[] = {"注册号","核准时间","企业名称","经营范围","经营期限"};
+        String data[] = {"注册号","核准时间","企业名称","经营范围","经营期限","所有数据"};
         ArrayAdapter adapter1;
         adapter1 = new ArrayAdapter<String>(MainActivity2.this,android.R.layout.simple_list_item_1,data);
         list.setAdapter(adapter1);
@@ -81,8 +78,7 @@ public class MainActivity2 extends AppCompatActivity {
         list.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-            String result = parent.getItemAtPosition(position).toString();//获取选择项的值
-            Toast.makeText(MainActivity2.this,"您点击了"+result, Toast.LENGTH_SHORT).show();
+            String result = parent.getItemAtPosition(position).toString();
             Intent intent = new Intent(MainActivity2.this, com.example.administrator.testphoto.MainActivity3.class);
                 String[] data = new String[0];
                 try {
@@ -90,7 +86,7 @@ public class MainActivity2 extends AppCompatActivity {
                     intent.putExtra("data", data);
                     startActivity(intent);
                 } catch (JSONException e) {
-                    intent.putExtra("data",  new String[]{result,"空"});
+                    intent.putExtra("data",  new String[]{result,"未识别到相关数据"});
                     startActivity(intent);
                     e.printStackTrace();
                 }

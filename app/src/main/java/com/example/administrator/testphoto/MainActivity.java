@@ -2,6 +2,7 @@ package com.example.administrator.testphoto;
 
 import android.Manifest;
 import android.content.ContentUris;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
@@ -12,7 +13,7 @@ import android.media.ExifInterface;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
-import android.os.Parcelable;
+import android.os.Looper;
 import android.provider.DocumentsContract;
 import android.provider.MediaStore;
 import android.support.annotation.Nullable;
@@ -22,11 +23,10 @@ import android.support.v4.content.ContextCompat;
 import android.support.v4.content.FileProvider;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
-import android.widget.ImageView;
+import android.widget.ProgressBar;
 import android.widget.Toast;
 
 import java.io.ByteArrayOutputStream;
@@ -54,14 +54,16 @@ import com.baidu.ocr.sdk.model.WordSimple;
 import static android.os.Environment.getExternalStorageDirectory;
 
 import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
     private static final int TAKE_PHOTO=1;
     private static final int CHOOSE_PHOTO=2;
     private Uri imageUri;
-    private ImageView imageView;
-    private CircleImageView circleImageView;
+    private ProgressBar loading;
+    public static Bitmap bitmap;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -72,8 +74,7 @@ public class MainActivity extends AppCompatActivity {
         if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.WRITE_EXTERNAL_STORAGE)!= PackageManager.PERMISSION_GRANTED){
             ActivityCompat.requestPermissions(MainActivity.this,new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},1);
         }
-        imageView=findViewById(R.id.image);
-        circleImageView=findViewById(R.id.circle_image);
+        loading = findViewById(R.id.loading);
         Button button=findViewById(R.id.button);
         button.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -148,13 +149,9 @@ public class MainActivity extends AppCompatActivity {
 
                         Bitmap bitmap=BitmapFactory.decodeStream(getContentResolver().openInputStream(imageUri));
                         Matrix matrix = new Matrix();
-                        matrix.postRotate(90);
+//                        matrix.postRotate(90);
                         Bitmap bitmap1=Bitmap.createBitmap(bitmap,0,0,bitmap.getWidth(),bitmap.getHeight(),matrix,true);
-//                        imageView.setImageBitmap(bitmap);
-//                        circleImageView.setImageBitmap(bitmap);
-//                        imageView.setImageBitmap(bitmap1);
-//                        circleImageView.setImageBitmap(bitmap1);
-                        this.getImgSuccess(imageUri);
+                        this.getImgSuccess(bitmap1);
                     } catch (FileNotFoundException e) {
                         e.printStackTrace();
                     } catch (IOException e) {
@@ -218,27 +215,19 @@ public class MainActivity extends AppCompatActivity {
     public void getImgSuccess(String imagePath){
         if (imagePath!=null){
             Bitmap bitmap=BitmapFactory.decodeFile(imagePath);
-            imageView.setImageBitmap(bitmap);
-            circleImageView.setImageBitmap(bitmap);
             this.ocrNormal(bitmap);
         }else {
             Log.i(TAG, "图片路径存在问题");
         }
     }
 
-    //直接用图库图片封装过的Uri也可以加载图片
-    public void getImgSuccess(Uri galleryUri){
-        try {
-            Bitmap bitmap=BitmapFactory.decodeStream(getContentResolver().openInputStream(galleryUri));
-            imageView.setImageBitmap(bitmap);
-            circleImageView.setImageBitmap(bitmap);
-            this.ocrNormal(bitmap);
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        }
+    public void getImgSuccess(Bitmap bitmap){
+        //            Bitmap bitmap=BitmapFactory.decodeStream(getContentResolver().openInputStream(galleryUri));
+        this.ocrNormal(bitmap);
     }
 
-    private void ocrNormal(Bitmap bitmap) {
+    private void ocrNormal(final Bitmap bitmap) {
+        loading.setVisibility(View.VISIBLE);
         // 通用文字识别参数设置
         GeneralBasicParams param = new GeneralBasicParams();
         param.setDetectDirection(true);
@@ -269,7 +258,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         param.setImageFile(file);
-        final MainActivity self = this;
+        final MainActivity SELF = this;
         // 调用通用文字识别服务
         OCR.getInstance(getApplication()).recognizeAccurateBasic(param, new OnResultListener<GeneralResult>() {
             @Override
@@ -285,30 +274,53 @@ public class MainActivity extends AppCompatActivity {
                 //file.delete();
                 //String返回
                 String ocrResult = sb.toString();
-                Log.v("4","===================================="+ocrResult);
-                // json格式返回字符串result.getJsonRes())
-                // text.setText(ocrResult);
-//                System.out.println("成功了一大半"+ocrResult+"lalala");
-//                System.out.println("识别数据"+result);
-//                System.out.println("识别JSOn"+result.getJsonRes());
-                System.out.println("*********识别成功*********");
-                self.Jump(result.getJsonRes());
+                loading.setVisibility(View.INVISIBLE);
+                System.out.println("*********识别成功*********"+ocrResult);
+                try {
+                    SELF.Jump(result.getJsonRes(), ocrResult, bitmap);
+                } catch (JSONException e) {
+                    Toast.makeText(SELF,"参数有误",Toast.LENGTH_LONG).show();
+                    e.printStackTrace();
+                }
             }
 
             @Override
             public void onError(OCRError error) {
                 System.out.println("出错啦");
-                Log.v("1","================================================"+error.getLocalizedMessage());
-                Log.v("2","================================================"+error.getMessage());
-                Log.v("3","================================================"+error.getErrorCode());
+                loading.setVisibility(View.INVISIBLE);
+                MainActivity.show(SELF,error.getMessage());
+//                Toast.makeText(SELF,"123",Toast.LENGTH_LONG).show();
+                Log.v("1","识别出错"+error.getMessage());
             }
         });
     }
 
-    private void Jump(String jsonRes) {
+    static Toast toast = null;
+    public static void show(Context context, String text) {
+        try {
+            if(toast!=null){
+                toast.setText(text);
+            }else{
+                toast= Toast.makeText(context, text, Toast.LENGTH_SHORT);
+            }
+            toast.show();
+        } catch (Exception e) {
+            //解决在子线程中调用Toast的异常情况处理
+            Looper.prepare();
+            Toast.makeText(context, text, Toast.LENGTH_SHORT).show();
+            Looper.loop();
+        }
+    }
+
+    private void Jump(String jsonRes, String strRes,Bitmap bitmap) throws JSONException {
         System.out.println("123123"+jsonRes);
+        MainActivity.bitmap = bitmap;
         Intent intent = new Intent(MainActivity.this, com.example.administrator.testphoto.MainActivity2.class);
-        intent.putExtra("data", jsonRes);
+        JSONObject data = new JSONObject();
+        data.put("jsonRes",jsonRes);
+        data.put("strRes",strRes);
+        data.put("bitMap","123");
+        intent.putExtra("data", data.toString());
         startActivity(intent);
     }
 }
