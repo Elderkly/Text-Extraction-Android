@@ -32,6 +32,7 @@ public class MainActivity3 extends AppCompatActivity {
         }
     }
 
+    //  获取上一个页面传递的数据进行显示
     public void initText() throws JSONException {
         TextView title = (TextView) findViewById(R.id.textView);
         TextView text = (TextView) findViewById(R.id.textView2);
@@ -50,6 +51,7 @@ public class MainActivity3 extends AppCompatActivity {
 
     }
 
+    //  长按返回监听
     public void initListen() {
         LinearLayout View = (LinearLayout) findViewById(R.id.viewBox);
         LongClickUtils.setLongClick(new Handler(), View, 2000, new View.OnLongClickListener() {

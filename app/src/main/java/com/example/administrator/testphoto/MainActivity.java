@@ -34,14 +34,8 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.text.Collator;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.Objects;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
-import de.hdodenhof.circleimageview.CircleImageView;
 import com.baidu.ocr.sdk.OCR;
 
 import com.baidu.ocr.sdk.OnResultListener;
@@ -51,9 +45,6 @@ import com.baidu.ocr.sdk.model.GeneralBasicParams;
 import com.baidu.ocr.sdk.model.GeneralResult;
 import com.baidu.ocr.sdk.model.WordSimple;
 
-import static android.os.Environment.getExternalStorageDirectory;
-
-import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -70,10 +61,37 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         setTitle("首页");
-        //申请写入权限
+
+        this.initOCR();
+        this.initPermissions();
+        this.initButtonListen();
+    }
+
+    //  初始化权限
+    public void initPermissions() {
         if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.WRITE_EXTERNAL_STORAGE)!= PackageManager.PERMISSION_GRANTED){
             ActivityCompat.requestPermissions(MainActivity.this,new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},1);
         }
+    }
+
+    //  初始化OCR接口
+    public void initOCR() {
+        // 百度，图片识别
+        OCR.getInstance(this).initAccessToken(new OnResultListener<AccessToken>() {
+            @Override
+            public void onResult(AccessToken accessToken) {
+                Log.d("OCR", "accessToken:"+accessToken);
+            }
+
+            @Override
+            public void onError(OCRError ocrError) {
+                Log.e("OCR","ocrError:"+ocrError);
+            }
+        }, getApplicationContext());
+    }
+
+    //  初始化按键点击监听
+    public void initButtonListen() {
         loading = findViewById(R.id.loading);
         Button button=findViewById(R.id.button);
         button.setOnClickListener(new View.OnClickListener() {
@@ -102,40 +120,27 @@ public class MainActivity extends AppCompatActivity {
         button1.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-//                Intent intent=new Intent(Intent.ACTION_PICK);
                 Intent intent=new Intent(Intent.ACTION_GET_CONTENT);
                 intent.setType("image/*");
                 startActivityForResult(intent,CHOOSE_PHOTO);
             }
         });
-
-        // 百度，图片识别
-        OCR.getInstance(this).initAccessToken(new OnResultListener<AccessToken>() {
-            @Override
-            public void onResult(AccessToken accessToken) {
-                Log.d("OCR", "accessToken:"+accessToken);
-            }
-
-            @Override
-            public void onError(OCRError ocrError) {
-                Log.e("OCR","ocrError:"+ocrError);
-            }
-        }, getApplicationContext());
     }
 
+    //  拒绝授予权限
     @Override
     public void onRequestPermissionsResult(int requestCode,String [] permissions,int[] grantResults){
         switch (requestCode){
             case 1:
                 if (grantResults.length>0&&grantResults[0]!=PackageManager.PERMISSION_GRANTED){
                     Toast.makeText(this,"拒绝权限将无法正常使用",Toast.LENGTH_SHORT).show();
-                    finish();
                 }
                 break;
             default:
         }
     }
 
+    //  拍照后/选择图片后 容器重新获取焦点
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         switch (requestCode){
@@ -171,6 +176,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    //  图片路径处理
     @RequiresApi(api = Build.VERSION_CODES.KITKAT)
     public void handleImageNow(Intent data){
         String imagePath=null;
@@ -194,12 +200,14 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+    //  图片路径兼容处理
     public void handleImageBefore(Intent data){
         Uri uri=data.getData();
         String imagePath=getImagePath(uri,null);
         getImgSuccess(imagePath);
     }
 
+    //  获取图片地址
     public String getImagePath(Uri uri,String selection){
         String path=null;
         Cursor cursor=getContentResolver().query(uri,null,selection,null,null);
@@ -212,6 +220,7 @@ public class MainActivity extends AppCompatActivity {
         return path;
     }
 
+    //  图片获取完毕
     public void getImgSuccess(String imagePath){
         if (imagePath!=null){
             Bitmap bitmap=BitmapFactory.decodeFile(imagePath);
@@ -220,26 +229,22 @@ public class MainActivity extends AppCompatActivity {
             Log.i(TAG, "图片路径存在问题");
         }
     }
-
     public void getImgSuccess(Bitmap bitmap){
         //            Bitmap bitmap=BitmapFactory.decodeStream(getContentResolver().openInputStream(galleryUri));
         this.ocrNormal(bitmap);
     }
 
+    //  图形识别
     private void ocrNormal(final Bitmap bitmap) {
         loading.setVisibility(View.VISIBLE);
+        File file;
         // 通用文字识别参数设置
         GeneralBasicParams param = new GeneralBasicParams();
         param.setDetectDirection(true);
-        //这里调用的是本地文件，使用时替换成你的本地文件
-        File file;
-
-
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        bitmap.compress(Bitmap.CompressFormat.JPEG, 80, baos);//质量压缩方法，这里100表示不压缩，把压缩后的数据存放到baos中
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 80, baos);
         SimpleDateFormat format = new SimpleDateFormat("yyyyMMddHHmmss");
         Date date = new Date(System.currentTimeMillis());
-        //图片名
         String filename = format.format(date);
         file = new File(Environment.getExternalStorageDirectory(), filename + ".png");
         try {
@@ -266,35 +271,30 @@ public class MainActivity extends AppCompatActivity {
                 StringBuilder sb = new StringBuilder();
                 // 调用成功，返回GeneralResult对象
                 for (WordSimple wordSimple : result.getWordList()) {
-                    // wordSimple不包含位置信息
                     WordSimple word = wordSimple;
                     sb.append(word.getWords());
-                    //sb.append("\n");
                 }
-                //file.delete();
-                //String返回
                 String ocrResult = sb.toString();
                 loading.setVisibility(View.INVISIBLE);
                 System.out.println("*********识别成功*********"+ocrResult);
                 try {
                     SELF.Jump(result.getJsonRes(), ocrResult, bitmap);
                 } catch (JSONException e) {
-                    Toast.makeText(SELF,"参数有误",Toast.LENGTH_LONG).show();
+                    MainActivity.show(SELF,"参数有误");
                     e.printStackTrace();
                 }
             }
 
             @Override
             public void onError(OCRError error) {
-                System.out.println("出错啦");
+                System.out.println("*********识别失败*********"+error.getMessage());
                 loading.setVisibility(View.INVISIBLE);
                 MainActivity.show(SELF,error.getMessage());
-//                Toast.makeText(SELF,"123",Toast.LENGTH_LONG).show();
-                Log.v("1","识别出错"+error.getMessage());
             }
         });
     }
 
+    //  通过主线程调用Toast
     static Toast toast = null;
     public static void show(Context context, String text) {
         try {
@@ -312,12 +312,14 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    //  图片处理完毕 进行页面跳转
     private void Jump(String jsonRes, String strRes,Bitmap bitmap) throws JSONException {
         System.out.println("123123"+jsonRes);
         MainActivity.bitmap = bitmap;
         Intent intent = new Intent(MainActivity.this, com.example.administrator.testphoto.MainActivity2.class);
         JSONObject data = new JSONObject();
         data.put("jsonRes",jsonRes);
+        //  intent无法传递这么大的数据 改用静态变量存储
         data.put("strRes",strRes);
         data.put("bitMap","123");
         intent.putExtra("data", data.toString());

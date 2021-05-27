@@ -3,12 +3,10 @@ package com.example.administrator.testphoto;
 import android.content.Intent;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
-import android.widget.Toast;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -23,6 +21,12 @@ public class MainActivity2 extends AppCompatActivity {
         setContentView(R.layout.activity_main2);
         this.initListView();
         setTitle("企业信息");
+
+        this.initIntent();
+    }
+
+    //  获取上一个页面传递过来的参数
+    public void initIntent() {
         try{
             Intent intent = getIntent();
             JSONObject baseData = new JSONObject(intent.getStringExtra("data"));
@@ -68,6 +72,7 @@ public class MainActivity2 extends AppCompatActivity {
         }
     }
 
+    //  初始化列表组件
     public void initListView() {
         ListView list = (ListView)findViewById(R.id.list_view);
         String data[] = {"注册号","核准时间","企业名称","经营范围","经营期限","所有数据"};
@@ -75,6 +80,7 @@ public class MainActivity2 extends AppCompatActivity {
         adapter1 = new ArrayAdapter<String>(MainActivity2.this,android.R.layout.simple_list_item_1,data);
         list.setAdapter(adapter1);
         final MainActivity2 self = this;
+        //  item点击
         list.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
@@ -82,6 +88,7 @@ public class MainActivity2 extends AppCompatActivity {
             Intent intent = new Intent(MainActivity2.this, com.example.administrator.testphoto.MainActivity3.class);
                 String[] data = new String[0];
                 try {
+                    //  传递对应数据到第三个页面
                     data = new String[]{result,self.data.getString(result)};
                     intent.putExtra("data", data);
                     startActivity(intent);
