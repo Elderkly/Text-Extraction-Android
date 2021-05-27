@@ -1,2 +1,5 @@
-# PhotoAndGallery
-这个是第一行代码上的调用相机拍照和调用图库图片的一个Demo
+# Text-Extraction-Android
+一款用于提取拍摄图片工商信息的安卓APP.     
+
+
+<img src="https://github.com/Elderkly/ImgRepository/blob/master/Text-Extraction-Android/1.gif"/>
