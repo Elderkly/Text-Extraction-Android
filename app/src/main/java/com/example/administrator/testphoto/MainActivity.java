@@ -11,6 +11,8 @@ import android.graphics.Matrix;
 import android.media.ExifInterface;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Environment;
+import android.os.Parcelable;
 import android.provider.DocumentsContract;
 import android.provider.MediaStore;
 import android.support.annotation.Nullable;
@@ -27,16 +29,31 @@ import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.Toast;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.text.Collator;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import de.hdodenhof.circleimageview.CircleImageView;
-import com.googlecode.tesseract.android.TessBaseAPI;
+import com.baidu.ocr.sdk.OCR;
+
+import com.baidu.ocr.sdk.OnResultListener;
+import com.baidu.ocr.sdk.exception.OCRError;
+import com.baidu.ocr.sdk.model.AccessToken;
+import com.baidu.ocr.sdk.model.GeneralBasicParams;
+import com.baidu.ocr.sdk.model.GeneralResult;
+import com.baidu.ocr.sdk.model.WordSimple;
+
 import static android.os.Environment.getExternalStorageDirectory;
+
+import org.json.JSONArray;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
@@ -45,14 +62,6 @@ public class MainActivity extends AppCompatActivity {
     private Uri imageUri;
     private ImageView imageView;
     private CircleImageView circleImageView;
-
-    private String FILE_NAME = "tessdata";
-    private String LANGUAGE_NAME = "chi_sim.traineddata";
-    private String LANGUAGE_FILE_NAME = "chi_sim";
-
-    private static String trainedDataPath;
-
-    private static String tesseractFolder;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -98,6 +107,19 @@ public class MainActivity extends AppCompatActivity {
                 startActivityForResult(intent,CHOOSE_PHOTO);
             }
         });
+
+        // 百度，图片识别
+        OCR.getInstance(this).initAccessToken(new OnResultListener<AccessToken>() {
+            @Override
+            public void onResult(AccessToken accessToken) {
+                Log.d("OCR", "accessToken:"+accessToken);
+            }
+
+            @Override
+            public void onError(OCRError ocrError) {
+                Log.e("OCR","ocrError:"+ocrError);
+            }
+        }, getApplicationContext());
     }
 
     @Override
@@ -198,7 +220,7 @@ public class MainActivity extends AppCompatActivity {
             Bitmap bitmap=BitmapFactory.decodeFile(imagePath);
             imageView.setImageBitmap(bitmap);
             circleImageView.setImageBitmap(bitmap);
-            this.detectText(bitmap);
+            this.ocrNormal(bitmap);
         }else {
             Log.i(TAG, "图片路径存在问题");
         }
@@ -210,84 +232,83 @@ public class MainActivity extends AppCompatActivity {
             Bitmap bitmap=BitmapFactory.decodeStream(getContentResolver().openInputStream(galleryUri));
             imageView.setImageBitmap(bitmap);
             circleImageView.setImageBitmap(bitmap);
-            this.detectText(bitmap);
+            this.ocrNormal(bitmap);
         } catch (FileNotFoundException e) {
             e.printStackTrace();
         }
     }
 
-    @RequiresApi(api = Build.VERSION_CODES.KITKAT)
-    public String detectText(Bitmap bitmap) {
+    private void ocrNormal(Bitmap bitmap) {
+        // 通用文字识别参数设置
+        GeneralBasicParams param = new GeneralBasicParams();
+        param.setDetectDirection(true);
+        //这里调用的是本地文件，使用时替换成你的本地文件
+        File file;
 
-        TessBaseAPI tessBaseAPI = new TessBaseAPI();
-//
-//
-//        File outFile = new File(getExternalFilesDir(FILE_NAME), LANGUAGE_NAME);
-//
-//
-//        if(!outFile.exists()){
-//            outFile.mkdir();
-//        }
-//
-//
-//        System.out.println("****"+outFile);
-//        String path = ""; //训练数据路径
-//
-        File outFile = new File(getExternalFilesDir(FILE_NAME), LANGUAGE_NAME);
-        System.out.println("outFile"+outFile);
-        if (!outFile.exists()) {
-            Toast.makeText(this,"找不到tessdata",Toast.LENGTH_LONG).show();
-            return "0";
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 80, baos);//质量压缩方法，这里100表示不压缩，把压缩后的数据存放到baos中
+        SimpleDateFormat format = new SimpleDateFormat("yyyyMMddHHmmss");
+        Date date = new Date(System.currentTimeMillis());
+        //图片名
+        String filename = format.format(date);
+        file = new File(Environment.getExternalStorageDirectory(), filename + ".png");
+        try {
+            FileOutputStream fos = new FileOutputStream(file);
+            try {
+                fos.write(baos.toByteArray());
+                fos.flush();
+                fos.close();
+            } catch (IOException e) {
+
+                e.printStackTrace();
+            }
+        } catch (FileNotFoundException e) {
+
+            e.printStackTrace();
         }
-        String path = Objects.requireNonNull(getExternalFilesDir("")).getAbsolutePath();
-        if (TextUtils.isEmpty(path)) {
-            Toast.makeText(this,"tessdata路径出现错误",Toast.LENGTH_LONG).show();
-            return "0";
-        }
 
-        tessBaseAPI.setDebug(true);
-        System.out.println("****"+path);
-        tessBaseAPI.init(path, "chi"); //eng为识别语言
-////        tessBaseAPI.setVariable(TessBaseAPI.VAR_CHAR_WHITELIST, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"); // 识别白名单
-////        tessBaseAPI.setVariable(TessBaseAPI.VAR_CHAR_BLACKLIST, "!@#$%^&*()_+=-[]}{;:'\"\\|~`,./<>?"); // 识别黑名单
-        tessBaseAPI.setPageSegMode(TessBaseAPI.PageSegMode.PSM_AUTO_OSD);//设置识别模式
-        Log.d(TAG, "Ended initialization of TessEngine");
-        Log.d(TAG, "Running inspection on bitmap");
-        tessBaseAPI.setImage(bitmap);
-        String inspection = tessBaseAPI.getHOCRText(0);
+        param.setImageFile(file);
+        final MainActivity self = this;
+        // 调用通用文字识别服务
+        OCR.getInstance(getApplication()).recognizeAccurateBasic(param, new OnResultListener<GeneralResult>() {
+            @Override
+            public void onResult(GeneralResult result) {
+                StringBuilder sb = new StringBuilder();
+                // 调用成功，返回GeneralResult对象
+                for (WordSimple wordSimple : result.getWordList()) {
+                    // wordSimple不包含位置信息
+                    WordSimple word = wordSimple;
+                    sb.append(word.getWords());
+                    //sb.append("\n");
+                }
+                //file.delete();
+                //String返回
+                String ocrResult = sb.toString();
+                Log.v("4","===================================="+ocrResult);
+                // json格式返回字符串result.getJsonRes())
+                // text.setText(ocrResult);
+//                System.out.println("成功了一大半"+ocrResult+"lalala");
+//                System.out.println("识别数据"+result);
+//                System.out.println("识别JSOn"+result.getJsonRes());
+                System.out.println("*********识别成功*********");
+                self.Jump(result.getJsonRes());
+            }
 
-        Log.d(TAG, "Confidence values: " + tessBaseAPI.meanConfidence());
-        tessBaseAPI.end();
-        System.gc();
-        String out = getTelNum(inspection);
-        System.out.println("****SUCCESS"+out);
-        return out;
+            @Override
+            public void onError(OCRError error) {
+                System.out.println("出错啦");
+                Log.v("1","================================================"+error.getLocalizedMessage());
+                Log.v("2","================================================"+error.getMessage());
+                Log.v("3","================================================"+error.getErrorCode());
+            }
+        });
     }
 
-    private static Pattern pattern = Pattern.compile("(1|861)\\d{10}$*");
-
-    private static StringBuilder bf = new StringBuilder();
-    public static String getTelNum(String sParam){
-        if(TextUtils.isEmpty(sParam)){
-            return "";
-        }
-
-        Matcher matcher = pattern.matcher(sParam.trim());
-        bf.delete(0, bf.length());
-
-        while (matcher.find()) {
-            bf.append(matcher.group()).append("\n");
-        }
-        int len = bf.length();
-        if (len > 0) {
-            bf.deleteCharAt(len - 1);
-        }
-        return bf.toString();
+    private void Jump(String jsonRes) {
+        System.out.println("123123"+jsonRes);
+        Intent intent = new Intent(MainActivity.this, com.example.administrator.testphoto.MainActivity2.class);
+        intent.putExtra("data", jsonRes);
+        startActivity(intent);
     }
-
-    //  页面跳转
-    public void Jump(){
-        System.out.println("123123");
-        startActivity(new Intent(MainActivity.this, com.example.administrator.testphoto.MainActivity2.class));
-    }/*按钮函数响应*/
 }
